@@ -10,6 +10,8 @@ from dataclasses import dataclass
 
 import numpy as np
 
+from rotor_dynamics.stage_log import stage
+
 _TWO_PI = 2.0 * np.pi
 
 
@@ -219,6 +221,16 @@ def assemble_rotor(
         Ascending assembled frequencies, and the modal response when ``loads``
         is given.
     """
+    with stage("rotor_dynamics", "rotor_assembly"):
+        return _assemble_rotor(blades, hub_shaft, rotor_speed_rad_s, loads)
+
+
+def _assemble_rotor(
+    blades: list[BladeModalModel] | tuple[BladeModalModel, ...],
+    hub_shaft: HubShaft,
+    rotor_speed_rad_s: float,
+    loads: AerodynamicLoadSeries | None = None,
+) -> RotorResult:
     if len(blades) == 0:
         raise ValueError("at least one blade is required")
     if any(not isinstance(blade, BladeModalModel) for blade in blades):
