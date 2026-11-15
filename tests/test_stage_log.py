@@ -22,7 +22,8 @@ from rotor_dynamics.stage_log import (
 def test_public_contract() -> None:
     assert LOGGER_NAME == "blade.stage"
     assert [item.name for item in dataclasses.fields(StageReport)] == [
-        "package", "stage", "seconds", "error", "depth", "started"]
+        "package", "stage", "seconds", "error", "depth", "started",
+        "cpu_seconds", "measures"]
     assert callable(stage) and callable(fold_reports)
     assert issubclass(StageCollector, logging.Handler)
 
@@ -52,6 +53,9 @@ def test_assemble_rotor_reports_the_assembly_and_keeps_blade_frequencies() -> No
         result = assemble_rotor((blade, blade), hub, rotor_speed_rad_s=0.0)
     expected = np.sort(np.concatenate((frequencies, frequencies)))
     np.testing.assert_allclose(result.frequencies_hz, expected, rtol=1e-12, atol=0.0)
-    folded = fold_reports(sink.take())
+    reports = sink.take()
+    assert [item.stage for item in reports] == ["rotor_assembly"]
+    assert reports[0].measures["modes"] == 4
+    folded = fold_reports(reports)
     assert set(folded) == {"rotor_assembly"}
     assert folded["rotor_assembly"] >= 0.0

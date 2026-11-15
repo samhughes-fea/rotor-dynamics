@@ -221,8 +221,10 @@ def assemble_rotor(
         Ascending assembled frequencies, and the modal response when ``loads``
         is given.
     """
-    with stage("rotor_dynamics", "rotor_assembly"):
-        return _assemble_rotor(blades, hub_shaft, rotor_speed_rad_s, loads)
+    with stage("rotor_dynamics", "rotor_assembly") as rec:
+        result = _assemble_rotor(blades, hub_shaft, rotor_speed_rad_s, loads)
+        rec.set("modes", int(result.frequencies_hz.size))
+        return result
 
 
 def _assemble_rotor(
