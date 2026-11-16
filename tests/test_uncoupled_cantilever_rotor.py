@@ -44,3 +44,10 @@ def test_two_identical_nonrotating_cantilevers_keep_blade_frequencies():
     np.testing.assert_allclose(result.frequencies_hz, expected, rtol=1e-12, atol=0.0)
     assert result.modal_response is None
     assert result.rotor_speed_rad_s == 0.0
+    # Identical blades: rotor modes interleave as (blade 0, blade 1) per frequency.
+    n_modes = blade.frequencies_hz.shape[0]
+    expected_participation = np.zeros((2 * n_modes, 2, n_modes))
+    for mode_index in range(n_modes):
+        expected_participation[2 * mode_index, 0, mode_index] = 1.0
+        expected_participation[2 * mode_index + 1, 1, mode_index] = 1.0
+    np.testing.assert_array_equal(result.participation, expected_participation)
