@@ -143,7 +143,7 @@ class AerodynamicLoadSeries:
 
 @dataclass(frozen=True)
 class RotorResult:
-    """Assembled rotor frequencies and, when loads were supplied, the modal response.
+    """Assembled rotor frequencies, blade-mode participation, and modal response.
 
     Parameters
     ----------
@@ -156,11 +156,17 @@ class RotorResult:
         supplied.
     rotor_speed_rad_s : float
         Rotor speed about the shaft axis, in radians per second.
+    participation : ndarray, shape (n_rotor_modes, n_blades, n_blade_modes)
+        Coefficient of blade ``b`` mode ``j`` in rotor mode ``i``. Root-fixed
+        shapes do not couple, so each rotor mode is one blade mode: that
+        entry is 1 and the rest of the row is 0. ``n_blade_modes`` is the
+        largest blade mode count; unused slots are 0.
     """
 
     frequencies_hz: np.ndarray
     modal_response: np.ndarray | None
     rotor_speed_rad_s: float
+    participation: np.ndarray
 
 
 def generalized_modal_mass(blade: BladeModalModel) -> np.ndarray:
@@ -218,8 +224,8 @@ def assemble_rotor(
     Returns
     -------
     RotorResult
-        Ascending assembled frequencies, and the modal response when ``loads``
-        is given.
+        Ascending assembled frequencies, the participation of each blade mode
+        in each rotor mode, and the modal response when ``loads`` is given.
     """
     with stage("rotor_dynamics", "rotor_assembly") as rec:
         result = _assemble_rotor(blades, hub_shaft, rotor_speed_rad_s, loads)
@@ -249,18 +255,44 @@ def _assemble_rotor(
     omega = _TWO_PI * np.concatenate([blade.frequencies_hz for blade in blades])
     stiffness = modal_mass * omega**2
     # G is zero for these root-fixed shapes, so Omega G drops out of
-    # lambda^2 M + lambda Omega G + K = 0 and lambda^2 = -K/M.
+    # lambda^2 M + lambda Omega G + K = 0 and lambda^2 = -K/M. The rotor
+    # eigenvectors in assembled blade-modal coordinates are then a
+    # permutation of the identity, which is the participation below.
     gyroscopic = np.zeros_like(modal_mass)
     omega_squared = stiffness / modal_mass - (speed * gyroscopic) ** 2 / (4.0 * modal_mass**2)
-    frequencies = np.sqrt(omega_squared) / _TWO_PI
-    frequencies = np.sort(frequencies, kind="mergesort")
+    frequencies_unsorted = np.sqrt(omega_squared) / _TWO_PI
+    order = np.argsort(frequencies_unsorted, kind="mergesort")
+    frequencies = frequencies_unsorted[order]
+    participation = _blade_mode_participation(blades)[order]
 
     response = None if loads is None else _modal_response(blades, loads)
     return RotorResult(
         frequencies_hz=frequencies,
         modal_response=response,
         rotor_speed_rad_s=speed,
+        participation=participation,
     )
+
+
+def _blade_mode_participation(
+    blades: tuple[BladeModalModel, ...] | list[BladeModalModel],
+) -> np.ndarray:
+    """Map assembled coordinates onto (blade, blade-mode) before frequency sort.
+
+    Assembled coordinate ``i`` is blade ``b`` mode ``j`` in input order, so
+    ``participation[i, b, j] = 1``. Rows follow that concatenation; the
+    caller permutes them into rotor-mode order.
+    """
+    n_blades = len(blades)
+    n_modes = [blade.mode_shapes.shape[1] for blade in blades]
+    n_max = max(n_modes)
+    participation = np.zeros((sum(n_modes), n_blades, n_max), dtype=np.float64)
+    offset = 0
+    for blade_index, count in enumerate(n_modes):
+        for mode_index in range(count):
+            participation[offset + mode_index, blade_index, mode_index] = 1.0
+        offset += count
+    return participation
 
 
 def _modal_response(blades: tuple[BladeModalModel, ...] | list[BladeModalModel], loads: AerodynamicLoadSeries) -> np.ndarray:

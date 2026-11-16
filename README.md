@@ -14,11 +14,12 @@ Assembles a rotor. It does not compute blade modes or blade sections.
 **Output**
 
 - The assembled rotor frequencies, including rotation.
-- The modal response of the assembled rotor to those loads.
+- The participation of each blade mode in each rotor mode.
+- The modal response of the assembled rotor to those loads. Physical displacement of a blade is `mode_shapes @ q`.
 
 Blade frequencies are data. Centrifugal stiffening and the blade eigenproblem stay in the tool that produced the modes (1d-fem or, later, shell-fem). This package does not import implicit-geometry-kernel, anisotropic-section-model, or shell-fem.
 
-Root-fixed cantilever modes have no hub motion, so the blades do not couple through the hub or the shaft and the gyroscopic matrix is zero. For a non-rotating rotor the assembled frequencies are the blade frequencies, once per blade. The same uncoupled frequencies are returned at any rotor speed, because the speed multiplies that zero gyroscopic matrix. A blade model that already includes rotation keeps the frequencies it was given.
+Root-fixed cantilever modes have no hub motion, so the blades do not couple through the hub or the shaft and the gyroscopic matrix is zero. For a non-rotating rotor the assembled frequencies are the blade frequencies, once per blade. The same uncoupled frequencies are returned at any rotor speed, because the speed multiplies that zero gyroscopic matrix. A blade model that already includes rotation keeps the frequencies it was given. Each rotor mode is then one supplied blade mode: `participation[i, b, j]` is 1 for that pair and 0 elsewhere.
 
 ## Install
 
